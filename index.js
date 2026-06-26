@@ -1,11 +1,11 @@
+require("dotenv").config();
 const express = require("express");
-const cors = require("cors");
+const Note = require("./models/note");
 
 const app = express();
 
-app.use(cors())
 app.use(express.json());
-app.use(express.static('dist'))
+app.use(express.static("dist"));
 
 let notes = [
   {
@@ -25,44 +25,66 @@ let notes = [
   },
 ];
 
-const generateId = () => {
-  const maxId =
-    notes.length > 0 ? Math.max(...notes.map((n) => Number(n.id))) : 0;
-  return String(maxId + 1);
-};
-
-app.get("/api/notes/:id", (req, resp) => {
-  const id = req.params.id;
-  const note = notes.find((n) => n.id === id);
-  note ? resp.json(note) : resp.status(404).end();
+app.get("/api/notes/:id", (req, resp, next) => {
+  Note.findById(req.params.id)
+    .then((note) => (note ? resp.json(note) : resp.status(404).end()))
+    .catch((err) => next(err));
 });
 
-app.delete("/api/notes/:id", (req, resp) => {
-  const id = req.params.id;
-  notes = notes.filter((n) => n.id !== id);
-  resp.status(204).end();
+app.delete("/api/notes/:id", (req, resp, next) => {
+  Note.findByIdAndDelete(req.params.id)
+    .then((result) => res.status(204).end())
+    .catch((err) => next(err));
 });
 
-app.post("/api/notes", (req, resp) => {
+app.put("/api/notes/:id", (req, resp, next) => {
+  const { content, important } = req.body;
+  Note.findById(req.params.id)
+    .then((note) => {
+      if (!note) {
+        return resp.status(404).end;
+      }
+      note.content = content;
+      note.important = important;
+      return note.save().then((updatedNote) => resp.json(updatedNote));
+    })
+    .catch((err) => next(err));
+});
+
+app.post("/api/notes", (req, resp, next) => {
   const body = req.body;
 
   if (!body.content) {
     return resp.status(400).json({ error: "content missing" });
   }
 
-  const note = {
+  const note = new Note({
     content: body.content,
     important: body.important || false,
-    id: generateId(),
-  };
+  });
 
-  notes = notes.concat(note);
-  resp.json(note);
+  note
+    .save()
+    .then((savedNote) => resp.json(savedNote))
+    .catch((err) => next(err));
 });
 
 app.get("/", (req, resp) => resp.send("<h1>Hello World </h1>"));
 
-app.get("/api/notes", (req, resp) => resp.json(notes));
+app.get("/api/notes", (req, resp) =>
+  Note.find({}).then((notes) => resp.json(notes)),
+);
+
+const errorHandler = (error, req, res, next) => {
+  if (error.name === "CastError") {
+    return res.status(400).send({ error: "malformatted id" });
+  } else if (error.name === "ValidationError") {
+    return res.status(400).json({ error: error.message });
+  }
+  next(error);
+};
+
+app.use(errorHandler);
 
 const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => console.log(`Server running in port ${PORT}`));

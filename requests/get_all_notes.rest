@@ -5,6 +5,14 @@ POST http://localhost:3001/api/notes/
 content-Type: application/json
 
 {
+    "content": "RES",
+    "important": true
+}
+###
+POST http://localhost:3001/api/notes/
+content-Type: application/json
+
+{
     "content": "REST client is GOOD",
     "important": true
 }
